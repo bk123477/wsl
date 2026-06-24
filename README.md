@@ -283,11 +283,322 @@ wsl --status
 
 WSL 설치가 끝나면 보통 다음 작업을 이어서 합니다.
 
-- Git 설정
-- SSH 키 생성
-- Node.js, Python, Docker 등 개발 도구 설치
-- VS Code와 WSL 연동
-- `.bashrc` 또는 `.zshrc` 설정
+### 14-1. Git 설정
+
+WSL 안에서 Git을 처음 쓴다면 사용자 이름과 이메일을 먼저 설정합니다.
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+```
+
+설정 확인:
+
+```bash
+git config --global --list
+```
+
+기본 브랜치 이름을 `main`으로 맞추고 싶다면:
+
+```bash
+git config --global init.defaultBranch main
+```
+
+줄바꿈 문제를 줄이기 위해 WSL 안에서는 아래 설정을 많이 사용합니다.
+
+```bash
+git config --global core.autocrlf input
+```
+
+이 설정은 WSL/Linux 환경에서 `CRLF`를 자동으로 만들지 않고, 커밋 시점에만 줄바꿈을 정리하는 쪽에 가깝습니다.
+
+### 14-2. SSH 키 생성
+
+GitHub 같은 원격 저장소에 비밀번호 대신 SSH로 접속하려면 SSH 키를 만듭니다.
+
+```bash
+ssh-keygen -t ed25519 -C "you@example.com"
+```
+
+보통 기본 경로 그대로 진행하면 아래 위치에 생성됩니다.
+
+- 개인 키: `~/.ssh/id_ed25519`
+- 공개 키: `~/.ssh/id_ed25519.pub`
+
+SSH 에이전트를 시작하고 키를 등록:
+
+```bash
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519
+```
+
+공개 키 내용 확인:
+
+```bash
+cat ~/.ssh/id_ed25519.pub
+```
+
+출력된 공개 키를 GitHub의 SSH keys 설정 화면에 등록합니다.
+
+등록 후 연결 테스트:
+
+```bash
+ssh -T git@github.com
+```
+
+처음 연결할 때 아래처럼 서버 fingerprint 확인 메시지가 나올 수 있습니다.
+
+```text
+The authenticity of host '[ssh.github.com]:443' can't be established.
+Are you sure you want to continue connecting?
+```
+
+이 경우 처음 접속하는 GitHub SSH 서버를 신뢰할 것인지 묻는 것이므로 `yes`를 입력하면 됩니다.
+
+그 다음 아래와 같은 메시지가 나오면 정상입니다.
+
+```text
+Warning: Permanently added '[ssh.github.com]:443' ... to the list of known hosts.
+Hi bk123477! You've successfully authenticated, but GitHub does not provide shell access.
+```
+
+의미는 다음과 같습니다.
+
+- GitHub 계정 SSH 인증에 성공했다
+- GitHub는 일반 리눅스 서버처럼 셸 접속은 제공하지 않는다
+- 즉 오류가 아니라 정상 성공 메시지다
+
+만약 현재 환경에서 GitHub SSH 접속이 기본 22번 포트가 아니라 443 포트에서만 성공한다면, 아래처럼 SSH 설정 파일을 만들어두면 이후 사용이 편합니다.
+
+```bash
+nano ~/.ssh/config
+```
+
+아래 내용을 추가합니다.
+
+```sshconfig
+Host github.com
+  HostName ssh.github.com
+  User git
+  Port 443
+  IdentityFile ~/.ssh/id_ed25519
+```
+
+`nano`에서 저장하는 방법:
+
+```text
+Ctrl + O
+Enter
+Ctrl + X
+```
+
+설정 후 다시 테스트:
+
+```bash
+ssh -T git@github.com
+```
+
+다시 아래와 같은 메시지가 나오면 정상입니다.
+
+```text
+Hi bk123477! You've successfully authenticated, but GitHub does not provide shell access.
+```
+
+기존 저장소의 원격 주소가 HTTPS로 되어 있다면, SSH로 바꿔두면 이후 `git push`가 더 편합니다.
+
+현재 원격 주소 확인:
+
+```bash
+git remote -v
+```
+
+예를 들어 현재가 아래처럼 HTTPS라면:
+
+```text
+origin  https://github.com/bk123477/wsl.git (fetch)
+origin  https://github.com/bk123477/wsl.git (push)
+```
+
+아래 명령으로 SSH 주소로 변경합니다.
+
+```bash
+git remote set-url origin git@github.com:bk123477/wsl.git
+```
+
+변경 확인:
+
+```bash
+git remote -v
+```
+
+정상이라면 아래처럼 보입니다.
+
+```text
+origin  git@github.com:bk123477/wsl.git (fetch)
+origin  git@github.com:bk123477/wsl.git (push)
+```
+
+그 다음부터는 아래처럼 푸시할 수 있습니다.
+
+```bash
+git push
+```
+
+### 14-3. Node.js 설치
+
+Node.js는 여러 설치 방법이 있지만, 버전 관리를 위해 `nvm` 사용이 편합니다.
+
+먼저 `curl`이 없다면 설치:
+
+```bash
+sudo apt update
+sudo apt install -y curl
+```
+
+그 다음 `nvm` 설치 스크립트 실행:
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+```
+
+셸 설정을 다시 불러온 뒤:
+
+```bash
+source ~/.bashrc
+```
+
+LTS 버전 설치:
+
+```bash
+nvm install --lts
+nvm use --lts
+```
+
+설치 확인:
+
+```bash
+node -v
+npm -v
+```
+
+### 14-4. Python 설치
+
+Ubuntu 계열에서는 보통 Python 3가 기본 제공되지만, 필요한 도구를 추가 설치하는 편이 좋습니다.
+
+```bash
+sudo apt update
+sudo apt install -y python3 python3-pip python3-venv
+```
+
+설치 확인:
+
+```bash
+python3 --version
+pip3 --version
+```
+
+프로젝트별 가상환경 예시:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+가상환경을 빠져나오려면:
+
+```bash
+deactivate
+```
+
+### 14-5. Docker 사용
+
+WSL에서 Docker를 쓰는 가장 쉬운 방법은 보통 Windows에 Docker Desktop을 설치하고 WSL 연동을 켜는 것입니다.
+
+일반적인 흐름:
+
+1. Windows에 Docker Desktop 설치
+2. Docker Desktop 실행
+3. Settings에서 WSL Integration 활성화
+4. 사용할 배포판(Ubuntu 등)을 켜기
+
+그 뒤 WSL 안에서 확인:
+
+```bash
+docker --version
+docker ps
+```
+
+만약 `docker` 명령이 없다면 Docker Desktop이 아직 설치되지 않았거나 WSL 연동이 꺼져 있을 가능성이 큽니다.
+
+### 14-6. VS Code와 WSL 연동
+
+WSL과 VS Code를 같이 쓰면 매우 편합니다.
+
+보통 필요한 준비는 아래와 같습니다.
+
+1. Windows에 VS Code 설치
+2. VS Code의 Remote - WSL 확장 설치
+3. WSL 터미널에서 프로젝트 폴더로 이동
+4. 아래 명령 실행
+
+```bash
+code .
+```
+
+그러면 VS Code가 WSL 환경에 연결된 상태로 열립니다.
+
+VS Code가 `code` 명령을 인식하지 못하면:
+
+- VS Code가 설치되지 않았거나
+- Remote - WSL 확장이 없거나
+- PATH 반영이 아직 안 되었을 수 있습니다
+
+### 14-7. `.bashrc` 또는 `.zshrc` 설정
+
+자주 쓰는 별칭(alias), 환경 변수, 시작 명령은 셸 설정 파일에 넣어두면 편합니다.
+
+대부분 Ubuntu 기본 셸은 `bash`이므로 우선 `.bashrc`를 많이 사용합니다.
+
+파일 열기:
+
+```bash
+nano ~/.bashrc
+```
+
+예시로 아래 내용을 추가할 수 있습니다.
+
+```bash
+alias ll="ls -alF"
+alias la="ls -A"
+alias gs="git status"
+alias gp="git pull"
+alias gc="git commit"
+```
+
+적용:
+
+```bash
+source ~/.bashrc
+```
+
+현재 기본 셸 확인:
+
+```bash
+echo $SHELL
+```
+
+만약 `zsh`를 설치해 사용한다면 설정 파일은 보통 `~/.zshrc`입니다.
+
+### 14-8. 추천 순서
+
+처음에는 아래 순서로 진행하면 편합니다.
+
+1. Git 사용자 정보 설정
+2. SSH 키 생성 및 GitHub 등록
+3. VS Code와 WSL 연결 확인
+4. Node.js 또는 Python 중 필요한 런타임 설치
+5. Docker Desktop 연동
+6. `.bashrc` 또는 `.zshrc`에 자주 쓰는 설정 추가
 
 ## 15. 참고한 공식 문서
 
